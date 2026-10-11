@@ -1,11 +1,12 @@
 # Logger design skeleton
 
-Study examples based on **DesignPatterns.pdf, slides 16–22**. These explanations and simplified examples were created for studying; they are not the professor's original code.
+Study examples based on **DesignPatterns.pdf, slides 16–24**. These explanations and simplified examples were created for studying; they are not the professor's original code.
 
 | File | Course slides | Design |
 | --- | --- | --- |
 | [NaiveLogger.java](NaiveLogger.java) | 16–19 | Pass the Logger through function parameters |
 | [StaticFieldLogger.java](StaticFieldLogger.java) | 20–22 | Store the Logger reference in a public static field |
+| [singletonLogger.java](singletonLogger.java) | 23–24 | Control creation and access through `Logger.getLogger()` |
 
 ## Problem statement
 
@@ -93,18 +94,52 @@ If other code saved a reference to the original object, that reference still poi
 
 **One static field does not enforce one Logger object.** The constructor remains public, and the shared field can be reassigned.
 
-## What remains unresolved?
+## Compare the three designs
 
-| Concern | Naïve design | Static field design |
-| --- | --- | --- |
-| Access to the logger | Pass a reference through parameters | Use `Logger.logger` after initialization |
-| Prevent extra Logger objects | Not enforced | Not enforced |
-| Prevent replacement of the shared field | No shared field | Not enforced |
-| Lazy initialization | Not enforced; created directly in `main` | Not enforced; created directly in `main` |
+| Concern | Naïve design | Static field design | Singleton design |
+| --- | --- | --- | --- |
+| Access to the logger | Pass a reference through parameters | Use `Logger.logger` after initialization | Use `Logger.getLogger()` |
+| Prevent extra Logger objects through ordinary construction | Not enforced | Not enforced | Private constructor |
+| Prevent outside code from replacing the shared field | No shared field | Not enforced | Private field |
+| Lazy initialization | Not enforced; created directly in `main` | Not enforced; created directly in `main` | Created on the first `getLogger()` call |
 
 For a Logger that opens a file in its constructor, creating another object opens another file stream and can split messages across files. These console examples show the object operations in the code rather than printing diagnostic labels.
 
 Slide 22 emphasizes avoiding hidden rules. The static field design still relies on callers to initialize the field first, avoid extra objects, and avoid replacing the reference. Calling `Logger.logger.log(...)` while the field is `null` throws a `NullPointerException`.
+
+## Singleton design
+
+The Singleton approach makes the constructor and shared field private, then provides a public method to obtain the object:
+
+```java
+private static Logger logger = null;
+
+private Logger() {
+}
+
+public static Logger getLogger() {
+    if (logger == null) {
+        logger = new Logger();
+    }
+    return logger;
+}
+```
+
+- The private constructor prevents other classes from calling `new Logger()`.
+- The private field prevents other classes from replacing the shared reference.
+- The public static `getLogger()` method lets callers obtain the Logger without already having an object.
+- The first call finds `null`, creates the object, and returns it.
+- Later calls find the existing object and return it without creating another.
+
+The example's `checkout()` and `saveOrder()` each call `Logger.getLogger()` before logging. Their local variables refer to the same object:
+
+```text
+checkout's logger ──┐
+                   ├──→ one Logger object
+saveOrder's logger ┘
+```
+
+There is no Logger parameter to pass and no separate initialization statement in `main`. The object is created when `checkout()` first requests it for logging. This introductory version follows the slides and assumes a single-threaded application; concurrent calls would require additional coordination.
 
 ## Run the examples
 
@@ -118,7 +153,11 @@ java NaiveLogger.java
 java StaticFieldLogger.java
 ```
 
-Both normal examples print:
+```sh
+java singletonLogger.java
+```
+
+All three normal examples print:
 
 ```text
 Checkout started
@@ -138,4 +177,5 @@ The message text stays the same even though the code creates another Logger. Pri
 2. Which statement in each problem method creates a second object?
 3. Why does the static field design no longer need Logger parameters?
 4. What does `Logger.logger = logger2` change?
-5. Why do both designs still permit violations of the one-object requirement?
+5. Why do the naïve and static field designs still permit violations of the one-object requirement?
+6. Why does the second call to `Logger.getLogger()` return the first object instead of creating another?
